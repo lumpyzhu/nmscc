@@ -1,0 +1,17 @@
+
+lib/
+bin/
+build/
+out/
+
+.*
+*~
+*.obj
+*.bin
+*.dll
+*.lib
+*.so
+*.tmp
+*.db
+*.log
+*.pdb

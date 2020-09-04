@@ -1,0 +1,15 @@
+#pragma once
+
+#include "core/cmp.h"
+#include "core/fmt.h"
+#include "core/iter.h"
+#include "core/mem.h"
+#include "core/num.h"
+#include "core/ops.h"
+#include "core/option.h"
+#include "core/panicking.h"
+#include "core/ptr.h"
+#include "core/reflect.h"
+#include "core/result.h"
+#include "core/slice.h"
+#include "core/str.h"

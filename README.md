@@ -1,0 +1,3 @@
+﻿# Introduction
+
+`sfc` = safe c++
