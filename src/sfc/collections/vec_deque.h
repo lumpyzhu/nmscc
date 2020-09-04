@@ -12,33 +12,29 @@ struct Iter {
 
   T* _ptr;
   usize _mask;
-  usize _head;
-  usize _tail;
-
-  Iter(T* ptr, usize mask, usize head, usize tail) noexcept : _ptr{ptr}, _mask{mask}, _head{head}, _tail{tail} {}
+  usize _front;
+  usize _back;
 
   auto len() const -> usize {
-    return (_head - _tail) & _mask;
+    return (_back - _front) & _mask;
   }
 
-  auto next() noexcept -> Option<T&> {
-    if (_head == _tail) {
-      return option::NONE;
-    }
-    auto tail = _tail;
-    _tail = (_tail + 1) & _mask;
-    return {option::SOME, _ptr[tail]};
+  auto next() -> Option<T&> {
+    if (_back == _front) return option::NONE;
+
+    const auto old_front = _front;
+    _front = (_front + 1) & _mask;
+    return {option::SOME, _ptr[old_front]};
   }
 
-  auto next_back() noexcept -> Option<T&> {
-    if (_head == _tail) {
-      return option::NONE;
-    }
-    _head = (_head - 1) & _mask;
-    return {option::SOME, _ptr[_head]};
+  auto next_back() -> Option<T&> {
+    if (_back == _front) return option::NONE;
+
+    _back = (_back - 1) & _mask;
+    return {option::SOME, _ptr[_back]};
   }
 
-  auto operator-> () -> iter::Iter<Iter>* {
+  auto operator->() -> iter::Iter<Iter>* {
     return ops::Trait{this};
   }
 };
@@ -48,17 +44,18 @@ struct VecDeque {
   using Iter = vec_deque::Iter<const T>;
   using IterMut = vec_deque::Iter<T>;
 
+  //  [......front.....back...]
   RawVec<T> _buf;
-  usize _head;
-  usize _tail;
+  usize _front;
+  usize _back;
 
-  VecDeque() : _buf{}, _head(0), _tail(0) {}
+  VecDeque() : _buf{}, _front{0}, _back{0} {}
 
-  VecDeque(vec::RawVec<T> buf, usize head, usize tail) : _buf{sfc::move(buf)}, _head{head}, _tail{tail} {}
+  VecDeque(vec::RawVec<T> buf, usize front, usize back) : _buf{sfc::move(buf)}, _front{front}, _back{back} {}
 
-  VecDeque(VecDeque&& other) noexcept : _buf{sfc::move(other._buf)}, _head{other._head}, _tail{other._tail} {
-    other._head = 0;
-    other._tail = 0;
+  VecDeque(VecDeque&& other) noexcept : _buf{sfc::move(other._buf)}, _front{other._front}, _back{other._back} {
+    other._back = 0;
+    other._front = 0;
   }
 
   ~VecDeque() {
@@ -73,53 +70,53 @@ struct VecDeque {
     return VecDeque{RawVec<T>::with_capacity(new_cap), 0, 0};
   }
 
-  auto capicity() const noexcept -> usize {
+  auto capicity() const -> usize {
     return _buf.cap() - 1;
   }
 
-  auto len() const noexcept -> usize {
-    return (_head - _tail) & (_buf.cap() - 1);
+  auto len() const -> usize {
+    return (_back - _front) & (_buf.cap() - 1);
   }
 
   auto is_empty() const -> usize {
-    return _head == _tail;
+    return _front == _back;
   }
 
   auto is_contiguous() const -> bool {
-    return _tail <= _head;
+    return _front <= _back;
   }
 
   auto is_full() const -> bool {
-    return _buf.cap() <= this->len() + 1;
+    return this->len() + 1 >= _buf.cap();
   }
 
   auto iter() const -> Iter {
-    return Iter{_buf.ptr(), _buf.cap() - 1, _head, _tail};
+    return Iter{_buf.ptr(), _buf.cap() - 1, _front, _back};
   }
 
   auto iter_mut() -> IterMut {
-    return IterMut{_buf.ptr(), _buf.cap() - 1, _head, _tail};
+    return IterMut{_buf.ptr(), _buf.cap() - 1, _front, _back};
   }
 
-  auto operator[](usize index) const noexcept -> const T& {
+  auto operator[](usize index) const -> const T& {
     return this->get(index).except("Out of bounds access");
   }
 
-  auto operator[](usize index) noexcept -> T& {
+  auto operator[](usize index) -> T& {
     return this->get_mut(index).except("Out of bounds access");
   }
 
-  auto get(usize index) const noexcept -> Option<const T&> {
+  auto get(usize index) const -> Option<const T&> {
     if (index >= this->len()) return option::NONE;
 
-    auto idx = this->wrap_idx(_tail + index);
+    auto idx = this->wrap_idx(_front + index);
     return {option::SOME, _buf[idx]};
   }
 
-  auto get_mut(usize index) noexcept -> Option<T&> {
+  auto get_mut(usize index) -> Option<T&> {
     if (index >= this->len()) return option::NONE;
 
-    auto idx = this->wrap_idx(_tail + index);
+    auto idx = this->wrap_idx(_front + index);
     return {option::SOME, _buf[idx]};
   }
 
@@ -135,42 +132,41 @@ struct VecDeque {
     return (*this)[this->len() - 1];
   }
 
-  auto pop_front() noexcept -> Option<T> {
+  auto pop_front() -> Option<T> {
     if (this->is_empty()) return option::NONE;
 
-    const auto tail = this->_tail;
-    _tail = this->wrap_idx(_tail + 1);
-    return {option::SOME, this->buf_read(tail)};
+    const auto old_front = this->_front;
+    _front = this->wrap_idx(_front + 1);
+    return {option::SOME, sfc::move(_buf[old_front])};
   }
 
-  auto pop_back() noexcept -> Option<T> {
+  auto pop_back() -> Option<T> {
     if (this->is_empty()) return option::NONE;
 
-    _head = this->wrap_idx(_head - 1);
-    return {option::SOME, this->buf_read(_head)};
+    _back = this->wrap_idx(_back - 1);
+    return {option::SOME, sfc::move(_buf[_back])};
   }
 
   void push_front(T val) {
     this->grow_if_necessary();
-
-    _tail = this->wrap_idx(_tail - 1);
-    ptr::write(_buf.ptr() + _tail, sfc::move(val));
+    _front = this->wrap_idx(_front - 1);
+    ptr::write(_buf.ptr() + _front, sfc::move(val));
   }
 
   void push_back(T val) {
     this->grow_if_necessary();
 
-    const auto old_head = _head;
-    _head = this->wrap_idx(_head + 1);
-    ptr::write(_buf.ptr() + _head, sfc::move(val));
+    const auto old_back = _back;
+    _back = this->wrap_idx(_back + 1);
+    ptr::write(_buf.ptr() + old_back, sfc::move(val));
   }
 
   void clear() {
     if constexpr (!__is_trivially_destructible(T)) {
       this->iter_mut()->for_each(mem::drop<T>);
     }
-    _head = 0;
-    _tail = 0;
+    _front = 0;
+    _back = 0;
   }
 
   void grow_if_necessary() {
@@ -183,16 +179,17 @@ struct VecDeque {
   }
 
   void handle_capacity_increase(usize old_cap) {
-    auto new_cap = _buf.cap();
+    const auto new_cap = _buf.cap();
 
-    if (_tail <= _head) {
-    } else if (_head < old_cap - _tail) {
-      this->copy_nonoverlapping(old_cap, 0, _head);
-      _head += old_cap;
+    if (_front <= _back) {
+    } else if (_back < old_cap - _front) {
+      const auto old_back = _back;
+      _back += old_cap;
+      this->copy_nonoverlapping(0, old_cap, old_back);
     } else {
-      auto new_tail = new_cap - (old_cap - _tail);
-      this->copy_nonoverlapping(new_tail, _tail, old_cap - _tail);
-      _tail = new_tail;
+      const auto old_front = _front;
+      _front = new_cap - (old_cap - _front);
+      this->copy_nonoverlapping(old_front, _front, old_cap - old_front);
     }
   }
 

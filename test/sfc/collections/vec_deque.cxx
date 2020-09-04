@@ -7,13 +7,13 @@ namespace sfc::collections::vec_deque {
 
 sfc_test(push) {
   auto q = VecDeque<i32>{};
-  q.push_front(2);
-  q.push_front(1);
-  q.push_front(0);
+  q.push_front(12);
+  q.push_front(11);
+  q.push_front(10);
 
-  q.push_back(3);
-  q.push_back(4);
-  q.push_back(5);
+  q.push_back(13);
+  q.push_back(14);
+  q.push_back(15);
 
   log::info("q = {}", q);
 }
